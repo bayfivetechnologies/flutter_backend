@@ -28,7 +28,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
-# ================= USERS (NO HASHING FOR MVP) =================
+# ================= USERS =================
 users = {
     "vhw@test.com": {
         "email": "vhw@test.com",
@@ -78,12 +78,10 @@ def login(data: dict):
 def get_current_user(token: str = Depends(oauth2_scheme)):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-
         return {
             "email": payload.get("sub"),
             "role": payload.get("role")
         }
-
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
@@ -92,23 +90,68 @@ def require_vhw(user=Depends(get_current_user)):
         raise HTTPException(status_code=403, detail="Forbidden")
     return user
 
-# ================= PROTECTED ENDPOINTS =================
+# ================= ALERTS =================
 @app.get("/alerts")
 def alerts(user=Depends(require_vhw)):
     return {
         "alerts": [
-            {"title": "Malaria Risk", "message": "High rainfall zone"},
-            {"title": "Fever Spike", "message": "Monitor cases closely"}
+            {
+                "title": "Malaria Risk",
+                "message": "High rainfall zone in Kariba (Mashonaland West). Increase mosquito net use and test suspected cases."
+            },
+            {
+                "title": "Fever Spike",
+                "message": "Rising fever cases across Mashonaland West. Monitor closely and refer severe cases."
+            },
+            {
+                "title": "Diarrhea Cases",
+                "message": "Increased cases in Chitungwiza. Encourage ORS and hygiene practices."
+            }
         ],
         "total_patients": 120,
         "today_patients": 8
     }
 
+# ================= TRIAGE LOGIC =================
 @app.post("/assess")
-def assess(user=Depends(require_vhw)):
+def assess(data: dict, user=Depends(require_vhw)):
+    symptoms = (data.get("symptoms") or "").lower()
+    other = (data.get("other_symptoms") or "").lower()
+
+    combined = symptoms + " " + other
+
+    # ===== HIGH RISK =====
+    if "difficulty breathing" in combined or "chest pain" in combined:
+        return {
+            "risk": "high",
+            "advice": "URGENT: Refer patient to hospital immediately. Monitor airway and breathing."
+        }
+
+    # ===== MALARIA SUSPECT =====
+    if "fever" in combined and "headache" in combined:
+        return {
+            "risk": "high",
+            "advice": "Suspected malaria. Perform rapid test if available and refer to clinic immediately."
+        }
+
+    # ===== DIARRHEA =====
+    if "diarrhea" in combined or "vomiting" in combined:
+        return {
+            "risk": "medium",
+            "advice": "Give Oral Rehydration Salts (ORS), encourage fluids, monitor dehydration signs. Refer if condition worsens."
+        }
+
+    # ===== COUGH / GENERAL =====
+    if "cough" in combined:
+        return {
+            "risk": "low",
+            "advice": "Give paracetamol for fever or pain, advise rest and fluids. Monitor for 2–3 days."
+        }
+
+    # ===== DEFAULT =====
     return {
-        "risk": "medium",
-        "advice": "Refer patient to clinic"
+        "risk": "low",
+        "advice": "Mild symptoms. Provide basic care (paracetamol, fluids, rest) and monitor patient."
     }
 
 # ================= RENDER START =================
