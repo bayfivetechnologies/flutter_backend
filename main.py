@@ -2,7 +2,6 @@ from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
-from passlib.context import CryptContext
 from datetime import datetime, timedelta
 import os
 
@@ -27,27 +26,23 @@ SECRET_KEY = os.getenv("SECRET_KEY", "dev_secret_change_me")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
-# ================= FAKE USERS =================
+# ================= USERS (NO HASHING FOR MVP) =================
 users = {
     "vhw@test.com": {
         "email": "vhw@test.com",
-        "hashed_password": pwd_context.hash("1234"),
+        "password": "1234",
         "role": "village_health_worker"
     }
 }
 
 # ================= HELPERS =================
-def verify_password(plain, hashed):
-    return pwd_context.verify(plain, hashed)
-
 def authenticate_user(email, password):
     user = users.get(email)
     if not user:
         return None
-    if not verify_password(password, user["hashed_password"]):
+    if user["password"] != password:
         return None
     return user
 
